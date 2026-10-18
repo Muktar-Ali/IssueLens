@@ -25,10 +25,18 @@ npm install
 cp .env.example .env.local
 ```
 
-Then run:
+Start PostgreSQL, apply migrations, and run the app:
 
 ```bash
+npm run db:up
+npm run db:migrate
 npm run dev
+```
+
+To stop the local database:
+
+```bash
+npm run db:down
 ```
 
 Open `http://localhost:3000`.
