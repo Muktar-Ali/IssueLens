@@ -41,6 +41,19 @@ npm run db:down
 
 Open `http://localhost:3000`.
 
+## Create an investigation
+
+The first API workflow accepts public GitHub issue URLs:
+
+```bash
+curl -X POST http://localhost:3000/api/investigations \
+  -H "Content-Type: application/json" \
+  -d '{"issueUrl":"https://github.com/owner/repository/issues/123"}'
+```
+
+Set the optional `GITHUB_TOKEN` environment variable to increase GitHub's API rate limit. Private
+repository access will use the GitHub App integration in a later project step.
+
 ## Checks
 
 ```bash

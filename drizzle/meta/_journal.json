@@ -8,6 +8,13 @@
       "when": 1792356318937,
       "tag": "0000_previous_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793747141062,
+      "tag": "0001_nice_weapon_omega",
+      "breakpoints": true
     }
   ]
 }
