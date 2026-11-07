@@ -16,7 +16,7 @@ IssueLens is an evidence-based GitHub issue triage assistant. It will classify i
 Requirements:
 
 - Node.js 22.13 or newer
-- PostgreSQL
+- Docker Desktop
 
 Install dependencies and create your local environment file:
 
@@ -41,18 +41,30 @@ npm run db:down
 
 Open `http://localhost:3000`.
 
+## GitHub App authentication
+
+IssueLens uses a GitHub App installation token when these server-only variables are configured:
+
+```bash
+GITHUB_APP_ID=
+GITHUB_PRIVATE_KEY_PATH=/absolute/path/to/private-key.pem
+GITHUB_INSTALLATION_ID=
+```
+
+Keep the private key outside the repository and restrict it to your local user account. An inline
+`GITHUB_PRIVATE_KEY` is also supported for hosted environments. If no installation is configured,
+IssueLens falls back to the optional `GITHUB_TOKEN` and then unauthenticated public access.
+
 ## Create an investigation
 
-The first API workflow accepts public GitHub issue URLs:
+The first API workflow accepts public issues and private issues accessible to the configured App
+installation:
 
 ```bash
 curl -X POST http://localhost:3000/api/investigations \
   -H "Content-Type: application/json" \
   -d '{"issueUrl":"https://github.com/owner/repository/issues/123"}'
 ```
-
-Set the optional `GITHUB_TOKEN` environment variable to increase GitHub's API rate limit. Private
-repository access will use the GitHub App integration in a later project step.
 
 ## Checks
 
@@ -65,4 +77,5 @@ npm run build
 
 ## Project status
 
-The standard full-stack foundation is ready. GitHub credentials, database provisioning, and the OpenAI-backed analysis workflow are intentionally not configured yet.
+The full-stack foundation, PostgreSQL persistence, GitHub issue intake, and GitHub App installation
+authentication are ready. The OpenAI-backed analysis workflow is not configured yet.
