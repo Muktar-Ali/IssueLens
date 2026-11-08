@@ -1,6 +1,6 @@
-import { App } from "@octokit/app";
 import { Octokit } from "@octokit/rest";
-import { readFileSync } from "node:fs";
+import { createGitHubApp } from "@/lib/github-app";
+import { findGitHubInstallationId } from "@/lib/github-installations";
 import type { GitHubIssueReference } from "./github-url";
 
 export type GitHubIssueSnapshot = {
@@ -23,15 +23,10 @@ export class GitHubIssueFetchError extends Error {
   }
 }
 
-export async function createGitHubClient() {
-  const installationId = process.env.GITHUB_INSTALLATION_ID;
+export async function createGitHubClient(reference?: GitHubIssueReference) {
+  const installationId = reference ? await findGitHubInstallationId(reference) : undefined;
   if (installationId) {
-    const parsedInstallationId = Number(installationId);
-    if (!Number.isSafeInteger(parsedInstallationId) || parsedInstallationId < 1) {
-      throw new Error("GITHUB_INSTALLATION_ID must be a positive integer");
-    }
-
-    return createGitHubApp().getInstallationOctokit(parsedInstallationId);
+    return createGitHubApp().getInstallationOctokit(installationId);
   }
 
   const token = process.env.GITHUB_TOKEN;
@@ -43,7 +38,7 @@ export async function fetchGitHubIssue(
   client?: Octokit,
 ): Promise<GitHubIssueSnapshot> {
   try {
-    const github = client ?? (await createGitHubClient());
+    const github = client ?? (await createGitHubClient(reference));
     const { data } = await github.rest.issues.get({
       owner: reference.owner,
       repo: reference.repository,
@@ -84,34 +79,4 @@ export async function fetchGitHubIssue(
 function getErrorStatus(error: unknown) {
   if (typeof error !== "object" || error === null || !("status" in error)) return undefined;
   return typeof error.status === "number" ? error.status : undefined;
-}
-
-export function createGitHubApp() {
-  const appId = process.env.GITHUB_APP_ID;
-  const privateKey = getPrivateKey();
-  const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET;
-
-  if (!appId || !privateKey) {
-    throw new Error("GitHub App credentials are not configured");
-  }
-
-  const options = {
-    appId,
-    privateKey,
-    Octokit,
-  };
-
-  return webhookSecret
-    ? new App({ ...options, webhooks: { secret: webhookSecret } })
-    : new App(options);
-}
-
-function getPrivateKey() {
-  const inlinePrivateKey = process.env.GITHUB_PRIVATE_KEY?.replace(/\\n/g, "\n");
-  if (inlinePrivateKey) return inlinePrivateKey;
-
-  const privateKeyPath = process.env.GITHUB_PRIVATE_KEY_PATH;
-  if (privateKeyPath) return readFileSync(privateKeyPath, "utf8");
-
-  return undefined;
 }

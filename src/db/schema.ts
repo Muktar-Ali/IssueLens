@@ -1,4 +1,54 @@
-import { integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
+
+export const githubInstallations = pgTable("github_installations", {
+  id: bigint("id", { mode: "number" }).primaryKey(),
+  accountLogin: text("account_login").notNull(),
+  accountType: text("account_type").notNull(),
+  repositorySelection: text("repository_selection").notNull(),
+  permissions: jsonb("permissions").$type<Record<string, string>>().default({}).notNull(),
+  suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+  installedAt: timestamp("installed_at", { withTimezone: true }).notNull(),
+  githubUpdatedAt: timestamp("github_updated_at", { withTimezone: true }).notNull(),
+  syncedAt: timestamp("synced_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const githubRepositories = pgTable(
+  "github_repositories",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey(),
+    installationId: bigint("installation_id", { mode: "number" })
+      .notNull()
+      .references(() => githubInstallations.id, { onDelete: "cascade" }),
+    owner: text("owner").notNull(),
+    name: text("name").notNull(),
+    fullName: text("full_name").notNull(),
+    private: boolean("private").notNull(),
+    defaultBranch: text("default_branch").notNull(),
+    archived: boolean("archived").default(false).notNull(),
+    githubUpdatedAt: timestamp("github_updated_at", { withTimezone: true }),
+    syncedAt: timestamp("synced_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("github_repositories_installation_id_idx").on(table.installationId),
+    uniqueIndex("github_repositories_owner_name_unique").on(table.owner, table.name),
+  ],
+);
 
 export const investigationStatus = pgEnum("investigation_status", [
   "queued",

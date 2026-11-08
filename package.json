@@ -20,7 +20,8 @@
     "db:logs": "docker compose logs -f db",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "github:sync": "tsx scripts/sync-github.ts"
   },
   "dependencies": {
     "@octokit/app": "^16.1.4",
@@ -35,6 +36,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@next/env": "^16.4.2",
     "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.6.5",
@@ -44,6 +46,7 @@
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.4.2",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
   }

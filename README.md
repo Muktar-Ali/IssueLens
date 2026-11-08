@@ -25,11 +25,12 @@ npm install
 cp .env.example .env.local
 ```
 
-Start PostgreSQL, apply migrations, and run the app:
+Start PostgreSQL, apply migrations, sync GitHub access, and run the app:
 
 ```bash
 npm run db:up
 npm run db:migrate
+npm run github:sync
 npm run dev
 ```
 
@@ -48,12 +49,15 @@ IssueLens uses a GitHub App installation token when these server-only variables 
 ```bash
 GITHUB_APP_ID=
 GITHUB_PRIVATE_KEY_PATH=/absolute/path/to/private-key.pem
-GITHUB_INSTALLATION_ID=
 ```
 
 Keep the private key outside the repository and restrict it to your local user account. An inline
-`GITHUB_PRIVATE_KEY` is also supported for hosted environments. If no installation is configured,
-IssueLens falls back to the optional `GITHUB_TOKEN` and then unauthenticated public access.
+`GITHUB_PRIVATE_KEY` is also supported for hosted environments.
+
+Run `npm run github:sync` after installing the App or changing its repository access. The command
+stores installations and repositories in PostgreSQL. IssueLens then matches each submitted repository
+to its installation automatically. Repositories without a matching installation fall back to the
+optional `GITHUB_TOKEN` and then unauthenticated public access.
 
 ## Create an investigation
 
@@ -77,5 +81,5 @@ npm run build
 
 ## Project status
 
-The full-stack foundation, PostgreSQL persistence, GitHub issue intake, and GitHub App installation
-authentication are ready. The OpenAI-backed analysis workflow is not configured yet.
+The full-stack foundation, PostgreSQL persistence, GitHub issue intake, and database-backed GitHub
+App installation authentication are ready. The OpenAI-backed analysis workflow is not configured yet.
