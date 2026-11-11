@@ -72,6 +72,11 @@ export const investigations = pgTable("investigations", {
   issueUpdatedAt: timestamp("issue_updated_at", { withTimezone: true }).notNull(),
   status: investigationStatus("status").default("queued").notNull(),
   result: jsonb("result").$type<IssueAnalysisResult>(),
+  analysisModel: text("analysis_model"),
+  openaiResponseId: text("openai_response_id"),
+  failureReason: text("failure_reason"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

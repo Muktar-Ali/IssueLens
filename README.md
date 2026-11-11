@@ -83,8 +83,31 @@ produce and PostgreSQL will store in `investigations.result`. Every analysis con
 - Limitations that keep uncertain conclusions explicit
 
 All fields are required for OpenAI Structured Outputs. Unknown individual values use `null`, while
-sections with no supported findings use empty arrays. Defining the contract does not call OpenAI;
-the analysis execution pipeline is the next implementation step.
+sections with no supported findings use empty arrays.
+
+## Run an analysis
+
+Configure the server-only OpenAI settings in `.env.local`:
+
+```bash
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-6-astra
+```
+
+After creating an investigation, use its returned UUID to start analysis:
+
+```bash
+curl -X POST http://localhost:3000/api/investigations/INVESTIGATION_ID/analyze
+```
+
+The endpoint claims only `queued` investigations, marks one `running`, sends its stored issue
+snapshot to the OpenAI Responses API, validates the Structured Output, and stores it in
+`investigations.result`. Successful runs become `completed`; API, refusal, incomplete-output, and
+validation failures become `failed` with a recorded reason. Responses are requested with
+`store: false`.
+
+This synchronous endpoint is the MVP execution path. A background job queue can replace it later
+without changing the analysis contract or database lifecycle.
 
 ## Checks
 
@@ -98,5 +121,5 @@ npm run build
 ## Project status
 
 The full-stack foundation, PostgreSQL persistence, GitHub issue intake, database-backed GitHub App
-authentication, and structured analysis contract are ready. The OpenAI analysis execution pipeline
-is not configured yet.
+authentication, structured analysis contract, and OpenAI execution pipeline are ready. A valid API
+key is required before making a live analysis request.
