@@ -70,6 +70,22 @@ curl -X POST http://localhost:3000/api/investigations \
   -d '{"issueUrl":"https://github.com/owner/repository/issues/123"}'
 ```
 
+## Analysis result contract
+
+`src/lib/issue-analysis-schema.ts` defines the strict result that the OpenAI Responses API will
+produce and PostgreSQL will store in `investigations.result`. Every analysis contains:
+
+- Summary, classification, severity, and confidence
+- Missing-information checks and follow-up questions
+- Suggested labels and ranked duplicate candidates
+- Reproduction readiness, prerequisites, and steps
+- Probable causes linked to traceable evidence
+- Limitations that keep uncertain conclusions explicit
+
+All fields are required for OpenAI Structured Outputs. Unknown individual values use `null`, while
+sections with no supported findings use empty arrays. Defining the contract does not call OpenAI;
+the analysis execution pipeline is the next implementation step.
+
 ## Checks
 
 ```bash
@@ -81,5 +97,6 @@ npm run build
 
 ## Project status
 
-The full-stack foundation, PostgreSQL persistence, GitHub issue intake, and database-backed GitHub
-App installation authentication are ready. The OpenAI-backed analysis workflow is not configured yet.
+The full-stack foundation, PostgreSQL persistence, GitHub issue intake, database-backed GitHub App
+authentication, and structured analysis contract are ready. The OpenAI analysis execution pipeline
+is not configured yet.

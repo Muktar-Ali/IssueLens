@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { IssueAnalysisResult } from "../lib/issue-analysis-schema";
 
 export const githubInstallations = pgTable("github_installations", {
   id: bigint("id", { mode: "number" }).primaryKey(),
@@ -70,7 +71,7 @@ export const investigations = pgTable("investigations", {
   issueLabels: jsonb("issue_labels").$type<string[]>().default([]).notNull(),
   issueUpdatedAt: timestamp("issue_updated_at", { withTimezone: true }).notNull(),
   status: investigationStatus("status").default("queued").notNull(),
-  result: jsonb("result"),
+  result: jsonb("result").$type<IssueAnalysisResult>(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
