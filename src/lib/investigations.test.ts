@@ -16,6 +16,7 @@ const issueSnapshot = {
 
 describe("createInvestigation", () => {
   it("fetches the GitHub issue and saves a queued investigation", async () => {
+    const verifyRepository = vi.fn().mockResolvedValue(undefined);
     const fetchIssue = vi.fn().mockResolvedValue(issueSnapshot);
     const saveInvestigation = vi.fn().mockResolvedValue({
       id: "36d3ae7d-d3a6-43f6-9006-b482823f67fd",
@@ -25,9 +26,14 @@ describe("createInvestigation", () => {
 
     const result = await createInvestigation(
       "https://github.com/example/project/issues/42",
-      { fetchIssue, saveInvestigation },
+      { verifyRepository, fetchIssue, saveInvestigation },
     );
 
+    expect(verifyRepository).toHaveBeenCalledWith({
+      owner: "example",
+      repository: "project",
+      issueNumber: 42,
+    });
     expect(fetchIssue).toHaveBeenCalledWith({
       owner: "example",
       repository: "project",
@@ -60,15 +66,35 @@ describe("createInvestigation", () => {
   });
 
   it("rejects invalid URLs before calling GitHub or PostgreSQL", async () => {
+    const verifyRepository = vi.fn();
     const fetchIssue = vi.fn();
     const saveInvestigation = vi.fn();
 
     await expect(
       createInvestigation("https://example.com/not-an-issue", {
+        verifyRepository,
         fetchIssue,
         saveInvestigation,
       }),
     ).rejects.toBeInstanceOf(InvalidGitHubIssueUrlError);
+
+    expect(verifyRepository).not.toHaveBeenCalled();
+    expect(fetchIssue).not.toHaveBeenCalled();
+    expect(saveInvestigation).not.toHaveBeenCalled();
+  });
+
+  it("does not fetch an issue when its repository is not approved", async () => {
+    const verifyRepository = vi.fn().mockRejectedValue(new Error("not approved"));
+    const fetchIssue = vi.fn();
+    const saveInvestigation = vi.fn();
+
+    await expect(
+      createInvestigation("https://github.com/example/project/issues/42", {
+        verifyRepository,
+        fetchIssue,
+        saveInvestigation,
+      }),
+    ).rejects.toThrow("not approved");
 
     expect(fetchIssue).not.toHaveBeenCalled();
     expect(saveInvestigation).not.toHaveBeenCalled();

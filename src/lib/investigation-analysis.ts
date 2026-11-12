@@ -2,6 +2,10 @@ import { and, eq } from "drizzle-orm";
 import { investigations } from "@/db/schema";
 import { getDatabase } from "@/lib/database";
 import {
+  findDuplicateCandidates,
+  type DuplicateSearchResult,
+} from "@/lib/duplicate-candidates";
+import {
   generateIssueAnalysis,
   type GeneratedIssueAnalysis,
   type IssueAnalysisInput,
@@ -13,6 +17,7 @@ type ClaimedInvestigation = IssueAnalysisInput & {
 
 type AnalysisDependencies = {
   claimInvestigation: (id: string) => Promise<ClaimedInvestigation>;
+  findDuplicates: (issue: IssueAnalysisInput) => Promise<DuplicateSearchResult>;
   generateAnalysis: (issue: IssueAnalysisInput) => Promise<GeneratedIssueAnalysis>;
   completeInvestigation: (id: string, analysis: GeneratedIssueAnalysis) => Promise<void>;
   failInvestigation: (id: string, reason: string) => Promise<void>;
@@ -46,6 +51,7 @@ export class InvestigationAnalysisFailedError extends Error {
 
 const defaultDependencies: AnalysisDependencies = {
   claimInvestigation,
+  findDuplicates: findDuplicateCandidates,
   generateAnalysis: generateIssueAnalysis,
   completeInvestigation,
   failInvestigation,
@@ -59,7 +65,11 @@ export async function analyzeInvestigation(
   const investigation = await dependencies.claimInvestigation(id);
 
   try {
-    const analysis = await dependencies.generateAnalysis(investigation);
+    const duplicateSearch = await dependencies.findDuplicates(investigation);
+    const analysis = await dependencies.generateAnalysis({
+      ...investigation,
+      duplicateSearch,
+    });
     await dependencies.completeInvestigation(id, analysis);
     return {
       investigationId: id,

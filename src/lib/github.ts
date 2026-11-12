@@ -13,6 +13,16 @@ export type GitHubIssueSnapshot = {
   updatedAt: Date;
 };
 
+export type GitHubIssueSearchResult = {
+  number: number;
+  title: string;
+  body: string | null;
+  state: string;
+  labels: Array<string | { name?: string | null }>;
+  repositoryUrl: string;
+  pullRequest: boolean;
+};
+
 export class GitHubIssueFetchError extends Error {
   constructor(
     message: string,
@@ -23,7 +33,7 @@ export class GitHubIssueFetchError extends Error {
   }
 }
 
-export async function createGitHubClient(reference?: GitHubIssueReference) {
+async function createGitHubClient(reference?: GitHubIssueReference) {
   const installationId = reference ? await findGitHubInstallationId(reference) : undefined;
   if (installationId) {
     return createGitHubApp().getInstallationOctokit(installationId);
@@ -31,6 +41,42 @@ export async function createGitHubClient(reference?: GitHubIssueReference) {
 
   const token = process.env.GITHUB_TOKEN;
   return new Octokit(token ? { auth: token } : undefined);
+}
+
+// Keep repository access behind narrow, data-only functions. IssueLens does not expose
+// the Octokit client to analysis code and must not fetch files, archives, artifacts,
+// releases, attachments, or URLs embedded in issue content.
+export async function isGitHubRepositoryPrivate(reference: GitHubIssueReference) {
+  const github = await createGitHubClient(reference);
+  const { data } = await github.rest.repos.get({
+    owner: reference.owner,
+    repo: reference.repository,
+  });
+  return data.private;
+}
+
+export async function searchGitHubIssues(
+  reference: GitHubIssueReference,
+  query: string,
+  resultLimit: number,
+): Promise<GitHubIssueSearchResult[]> {
+  const github = await createGitHubClient(reference);
+  const { data } = await github.rest.search.issuesAndPullRequests({
+    q: query,
+    sort: "updated",
+    order: "desc",
+    per_page: resultLimit,
+  });
+
+  return data.items.map((item) => ({
+    number: item.number,
+    title: item.title,
+    body: item.body ?? null,
+    state: item.state,
+    labels: item.labels,
+    repositoryUrl: item.repository_url,
+    pullRequest: "pull_request" in item,
+  }));
 }
 
 export async function fetchGitHubIssue(

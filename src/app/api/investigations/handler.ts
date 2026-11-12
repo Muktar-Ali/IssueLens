@@ -6,6 +6,7 @@ import {
   InvalidGitHubIssueUrlError,
   type CreateInvestigationResult,
 } from "@/lib/investigations";
+import { RepositoryPolicyError } from "@/lib/repository-policy";
 
 const requestSchema = z
   .object({
@@ -41,6 +42,9 @@ export async function handleCreateInvestigation(
   } catch (error) {
     if (error instanceof InvalidGitHubIssueUrlError) {
       return errorResponse("INVALID_ISSUE_URL", error.message, 422);
+    }
+    if (error instanceof RepositoryPolicyError) {
+      return errorResponse(error.code, error.message, error.httpStatus);
     }
     if (error instanceof GitHubIssueFetchError) {
       return errorResponse("GITHUB_ISSUE_FETCH_FAILED", error.message, error.httpStatus);

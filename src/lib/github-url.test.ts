@@ -14,4 +14,10 @@ describe("parseGitHubIssueUrl", () => {
     expect(parseGitHubIssueUrl("https://github.com/openai/openai-node/pull/123")).toBeNull();
     expect(parseGitHubIssueUrl("https://example.com/openai/openai-node/issues/123")).toBeNull();
   });
+
+  it("rejects encoded repository names that could alter a GitHub search query", () => {
+    expect(
+      parseGitHubIssueUrl("https://github.com/openai/openai-node%20is:pr/issues/123"),
+    ).toBeNull();
+  });
 });

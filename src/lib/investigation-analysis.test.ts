@@ -25,21 +25,33 @@ const generated = {
   model: "test-model",
 };
 
+const duplicateSearch = {
+  status: "completed" as const,
+  candidates: [],
+  limitation: null,
+};
+
 describe("analyzeInvestigation", () => {
   it("claims, analyzes, and completes an investigation", async () => {
     const claimInvestigation = vi.fn().mockResolvedValue(investigation);
+    const findDuplicates = vi.fn().mockResolvedValue(duplicateSearch);
     const generateAnalysis = vi.fn().mockResolvedValue(generated);
     const completeInvestigation = vi.fn().mockResolvedValue(undefined);
     const failInvestigation = vi.fn();
 
     const result = await analyzeInvestigation(investigation.id, {
       claimInvestigation,
+      findDuplicates,
       generateAnalysis,
       completeInvestigation,
       failInvestigation,
     });
 
-    expect(generateAnalysis).toHaveBeenCalledWith(investigation);
+    expect(findDuplicates).toHaveBeenCalledWith(investigation);
+    expect(generateAnalysis).toHaveBeenCalledWith({
+      ...investigation,
+      duplicateSearch,
+    });
     expect(completeInvestigation).toHaveBeenCalledWith(investigation.id, generated);
     expect(failInvestigation).not.toHaveBeenCalled();
     expect(result).toEqual({
@@ -56,6 +68,7 @@ describe("analyzeInvestigation", () => {
     await expect(
       analyzeInvestigation(investigation.id, {
         claimInvestigation: vi.fn().mockResolvedValue(investigation),
+        findDuplicates: vi.fn().mockResolvedValue(duplicateSearch),
         generateAnalysis: vi.fn().mockRejectedValue(error),
         completeInvestigation: vi.fn(),
         failInvestigation,
@@ -63,6 +76,28 @@ describe("analyzeInvestigation", () => {
     ).rejects.toThrow(InvestigationAnalysisFailedError);
 
     expect(failInvestigation).toHaveBeenCalledWith(investigation.id, "OpenAI unavailable");
+  });
+
+  it("fails before OpenAI when repository verification rejects duplicate lookup", async () => {
+    const policyError = new Error("repository is not approved");
+    const generateAnalysis = vi.fn();
+    const failInvestigation = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      analyzeInvestigation(investigation.id, {
+        claimInvestigation: vi.fn().mockResolvedValue(investigation),
+        findDuplicates: vi.fn().mockRejectedValue(policyError),
+        generateAnalysis,
+        completeInvestigation: vi.fn(),
+        failInvestigation,
+      }),
+    ).rejects.toThrow(InvestigationAnalysisFailedError);
+
+    expect(generateAnalysis).not.toHaveBeenCalled();
+    expect(failInvestigation).toHaveBeenCalledWith(
+      investigation.id,
+      "repository is not approved",
+    );
   });
 
   it("does not mark anything failed when the investigation cannot be claimed", async () => {

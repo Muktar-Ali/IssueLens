@@ -4,6 +4,7 @@ import {
   InvalidGitHubIssueUrlError,
   type CreateInvestigationResult,
 } from "@/lib/investigations";
+import { RepositoryPolicyError } from "@/lib/repository-policy";
 import { handleCreateInvestigation } from "./handler";
 
 const investigation: CreateInvestigationResult = {
@@ -92,6 +93,28 @@ describe("POST /api/investigations", () => {
       error: {
         code: "GITHUB_ISSUE_FETCH_FAILED",
         message: "The GitHub issue was not found",
+      },
+    });
+  });
+
+  it("rejects repositories outside the explicit public allowlist", async () => {
+    const create = vi.fn().mockRejectedValue(
+      new RepositoryPolicyError(
+        "REPOSITORY_NOT_ALLOWED",
+        "This repository is not explicitly approved for IssueLens analysis",
+        403,
+      ),
+    );
+    const response = await handleCreateInvestigation(
+      request(JSON.stringify({ issueUrl: investigation.issue.url })),
+      create,
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: {
+        code: "REPOSITORY_NOT_ALLOWED",
+        message: "This repository is not explicitly approved for IssueLens analysis",
       },
     });
   });

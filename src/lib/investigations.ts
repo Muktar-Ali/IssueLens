@@ -8,6 +8,7 @@ import {
   parseGitHubIssueUrl,
   type GitHubIssueReference,
 } from "@/lib/github-url";
+import { assertRepositoryIsAllowedPublic } from "@/lib/repository-policy";
 
 export class InvalidGitHubIssueUrlError extends Error {
   constructor() {
@@ -23,6 +24,7 @@ type SavedInvestigation = {
 };
 
 type InvestigationDependencies = {
+  verifyRepository: (reference: GitHubIssueReference) => Promise<void>;
   fetchIssue: (reference: GitHubIssueReference) => Promise<GitHubIssueSnapshot>;
   saveInvestigation: (
     reference: GitHubIssueReference,
@@ -51,6 +53,7 @@ export type CreateInvestigationResult = {
 };
 
 const defaultDependencies: InvestigationDependencies = {
+  verifyRepository: assertRepositoryIsAllowedPublic,
   fetchIssue: fetchGitHubIssue,
   saveInvestigation,
 };
@@ -62,6 +65,7 @@ export async function createInvestigation(
   const reference = parseGitHubIssueUrl(issueUrl);
   if (!reference) throw new InvalidGitHubIssueUrlError();
 
+  await dependencies.verifyRepository(reference);
   const issue = await dependencies.fetchIssue(reference);
   const saved = await dependencies.saveInvestigation(reference, issue);
 
