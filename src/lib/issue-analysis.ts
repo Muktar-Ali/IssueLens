@@ -87,7 +87,7 @@ export async function generateIssueAnalysis(
 
 function defaultDependencies(): AnalysisDependencies {
   return {
-    model: process.env.OPENAI_MODEL?.trim() || "gpt-6-astra",
+    model: process.env.OPENAI_MODEL?.trim() || "gpt-5.4-mini",
     parseResponse: async (request) => getOpenAIClient().responses.parse(request),
   };
 }

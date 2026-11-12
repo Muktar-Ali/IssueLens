@@ -91,7 +91,7 @@ Configure the server-only OpenAI settings in `.env.local`:
 
 ```bash
 OPENAI_API_KEY=
-OPENAI_MODEL=gpt-6-astra
+OPENAI_MODEL=gpt-5.4-mini
 ```
 
 After creating an investigation, use its returned UUID to start analysis:
