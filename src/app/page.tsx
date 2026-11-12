@@ -1,88 +1,73 @@
-import { Bot, CheckCircle2, GitBranch, SearchCode, ShieldCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  GitBranch,
+  LockKeyhole,
+  SearchCode,
+  ShieldCheck,
+} from "lucide-react";
+import { InvestigationWorkspace } from "./investigation-workspace";
 
-const foundations = [
-  {
-    icon: GitBranch,
-    title: "GitHub App",
-    description: "Repository-scoped authentication and read-only code access.",
-  },
-  {
-    icon: SearchCode,
-    title: "Evidence pipeline",
-    description: "Bounded code search with file and line references.",
-  },
-  {
-    icon: Bot,
-    title: "Structured AI",
-    description: "Schema-validated investigations through the Responses API.",
-  },
+const safeguards = [
+  { icon: LockKeyhole, label: "Explicit public allowlist" },
+  { icon: GitBranch, label: "Same-repository search only" },
+  { icon: ShieldCheck, label: "No files, tools, or write access" },
 ];
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#e7efff_0,transparent_34%),#f5f7fb] px-6 py-8 text-slate-950 sm:px-10 lg:px-16">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-6xl flex-col">
-        <header className="flex items-center justify-between border-b border-slate-200/80 pb-6">
+    <main className="min-h-screen overflow-hidden bg-[#f3f4ef] text-[#172019]">
+      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(23,32,25,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(23,32,25,0.035)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]" />
+
+      <div className="relative mx-auto w-full max-w-[1440px] px-5 pb-16 sm:px-8 lg:px-12">
+        <header className="flex items-center justify-between border-b border-[#172019]/10 py-5">
           <div className="flex items-center gap-3">
-            <span className="grid size-10 place-items-center rounded-xl bg-blue-600 text-white shadow-sm">
+            <span className="grid size-10 place-items-center rounded-xl bg-[#172019] text-[#dfff54] shadow-[0_8px_24px_rgba(23,32,25,0.16)]">
               <SearchCode className="size-5" aria-hidden="true" />
             </span>
             <div>
-              <p className="font-semibold tracking-tight">IssueLens</p>
-              <p className="text-xs text-slate-500">GitHub issue triage assistant</p>
+              <p className="font-semibold tracking-[-0.02em]">IssueLens</p>
+              <p className="text-xs text-[#5f6b61]">Evidence-based issue triage</p>
             </div>
           </div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">
+
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#237a45]/20 bg-[#e8f5e9] px-3 py-1.5 text-xs font-semibold text-[#176538]">
             <CheckCircle2 className="size-3.5" aria-hidden="true" />
-            Standard stack ready
+            Local service ready
           </span>
         </header>
 
-        <section className="grid flex-1 items-center gap-14 py-16 lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="grid gap-10 pb-10 pt-14 lg:grid-cols-[1.05fr_0.95fr] lg:items-end lg:pb-14 lg:pt-20">
           <div>
-            <p className="mb-5 text-sm font-semibold uppercase tracking-[0.18em] text-blue-700">
-              Evidence before automation
+            <p className="mb-5 font-mono text-xs font-semibold uppercase tracking-[0.22em] text-[#536158]">
+              Triage workspace / v0.1
             </p>
-            <h1 className="max-w-3xl text-4xl font-semibold tracking-[-0.045em] sm:text-6xl">
-              Turn issue reports into actionable engineering work.
+            <h1 className="max-w-4xl text-5xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-6xl lg:text-7xl">
+              A clearer first pass on every issue.
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
-              Classify bugs, surface missing context, find likely duplicates, inspect relevant code,
-              and draft reproduction steps without giving an AI uncontrolled repository access.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3 text-sm font-medium">
-              <span className="rounded-lg bg-slate-950 px-4 py-2.5 text-white">Next.js + TypeScript</span>
-              <span className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-slate-700">PostgreSQL + Drizzle</span>
-              <span className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-slate-700">Octokit + OpenAI</span>
-            </div>
           </div>
 
-          <aside className="rounded-3xl border border-white/80 bg-white/85 p-6 shadow-[0_24px_80px_rgba(30,64,175,0.11)] backdrop-blur sm:p-8">
-            <div className="mb-6 flex items-center gap-3">
-              <span className="grid size-10 place-items-center rounded-xl bg-slate-100 text-slate-700">
-                <ShieldCheck className="size-5" aria-hidden="true" />
-              </span>
-              <div>
-                <p className="font-semibold">Foundation initialized</p>
-                <p className="text-sm text-slate-500">Credentials are not configured yet.</p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              {foundations.map(({ icon: Icon, title, description }) => (
-                <div key={title} className="flex gap-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
-                  <Icon className="mt-0.5 size-5 shrink-0 text-blue-600" aria-hidden="true" />
-                  <div>
-                    <p className="text-sm font-semibold">{title}</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
-                  </div>
-                </div>
+          <div className="lg:pb-1">
+            <p className="max-w-2xl text-base leading-7 text-[#536158] sm:text-lg sm:leading-8">
+              Submit an issue from an approved public repository. IssueLens classifies the report,
+              finds missing context, checks bounded duplicate candidates, and drafts reproduction
+              steps for human review.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-x-5 gap-y-3">
+              {safeguards.map(({ icon: Icon, label }) => (
+                <span key={label} className="inline-flex items-center gap-2 text-xs font-semibold text-[#344238]">
+                  <Icon className="size-3.5 text-[#237a45]" aria-hidden="true" />
+                  {label}
+                </span>
               ))}
             </div>
-          </aside>
+          </div>
         </section>
 
-        <footer className="border-t border-slate-200/80 pt-6 text-sm text-slate-500">
-          Local foundation only · No GitHub or OpenAI credentials are active
+        <InvestigationWorkspace />
+
+        <footer className="mt-8 flex flex-col gap-2 border-t border-[#172019]/10 pt-5 text-xs text-[#667168] sm:flex-row sm:items-center sm:justify-between">
+          <p>IssueLens never modifies GitHub issues. All recommendations require human review.</p>
+          <p className="font-mono uppercase tracking-[0.14em]">Public repositories only</p>
         </footer>
       </div>
     </main>
