@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { GitHubIssueFetchError } from "@/lib/github";
 import {
+  listCompletedInvestigations,
+  type InvestigationHistoryItem,
+} from "@/lib/investigation-history";
+import {
   createInvestigation,
   InvalidGitHubIssueUrlError,
   type CreateInvestigationResult,
@@ -15,6 +19,19 @@ const requestSchema = z
   .strict();
 
 type CreateInvestigationFunction = (issueUrl: string) => Promise<CreateInvestigationResult>;
+type ListInvestigationsFunction = () => Promise<InvestigationHistoryItem[]>;
+
+export async function handleListInvestigations(
+  list: ListInvestigationsFunction = listCompletedInvestigations,
+) {
+  try {
+    const investigations = await list();
+    return NextResponse.json({ investigations });
+  } catch (error) {
+    console.error("Failed to list investigations", error);
+    return errorResponse("INTERNAL_ERROR", "IssueLens could not load investigation history", 500);
+  }
+}
 
 export async function handleCreateInvestigation(
   request: Request,

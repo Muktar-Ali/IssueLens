@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   AlertCircle,
   BadgeCheck,
@@ -13,6 +13,7 @@ import {
   FileQuestion,
   Fingerprint,
   GitCompareArrows,
+  History,
   Lightbulb,
   Link2,
   ListChecks,
@@ -25,12 +26,16 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { IssueAnalysisResult } from "@/lib/issue-analysis-schema";
+import type {
+  InvestigationHistoryItem,
+  SavedInvestigationDetail,
+} from "@/lib/investigation-history";
 
 type Phase = "idle" | "creating" | "analyzing" | "completed" | "error";
 
 type CreatedInvestigation = {
   id: string;
-  status: "queued";
+  status: "queued" | "completed";
   repository: { owner: string; name: string };
   issue: {
     number: number;
@@ -52,6 +57,8 @@ type CompletedInvestigation = {
   model: string;
 };
 
+type AnalysisView = Pick<CompletedInvestigation, "result" | "model">;
+
 type ErrorPayload = {
   error?: { message?: string };
 };
@@ -61,9 +68,50 @@ export function InvestigationWorkspace() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [investigation, setInvestigation] = useState<CreatedInvestigation | null>(null);
-  const [analysis, setAnalysis] = useState<CompletedInvestigation | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisView | null>(null);
+  const [history, setHistory] = useState<InvestigationHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [openingHistoryId, setOpeningHistoryId] = useState<string | null>(null);
 
   const isPending = phase === "creating" || phase === "analyzing";
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+
+    try {
+      const response = await requestJson<{ investigations: InvestigationHistoryItem[] }>(
+        "/api/investigations",
+      );
+      setHistory(response.investigations);
+    } catch (reason) {
+      setHistoryError(reason instanceof Error ? reason.message : "Investigation history is unavailable.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    void requestJson<{ investigations: InvestigationHistoryItem[] }>("/api/investigations")
+      .then((response) => {
+        if (!active) return;
+        setHistory(response.investigations);
+      })
+      .catch((reason: unknown) => {
+        if (!active) return;
+        setHistoryError(reason instanceof Error ? reason.message : "Investigation history is unavailable.");
+      })
+      .finally(() => {
+        if (active) setHistoryLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -95,6 +143,7 @@ export function InvestigationWorkspace() {
 
       setAnalysis(completed.investigation);
       setPhase("completed");
+      void loadHistory();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "IssueLens could not complete the analysis.");
       setPhase("error");
@@ -109,9 +158,41 @@ export function InvestigationWorkspace() {
     setAnalysis(null);
   }
 
+  async function openSavedInvestigation(id: string) {
+    if (isPending || openingHistoryId) return;
+
+    setOpeningHistoryId(id);
+    setHistoryError(null);
+
+    try {
+      const response = await requestJson<{ investigation: SavedInvestigationDetail }>(
+        `/api/investigations/${id}`,
+      );
+      const saved = response.investigation;
+
+      setIssueUrl(saved.issue.url);
+      setInvestigation({
+        id: saved.id,
+        status: saved.status,
+        repository: saved.repository,
+        issue: saved.issue,
+        createdAt: saved.createdAt,
+      });
+      setAnalysis({ result: saved.result, model: saved.model });
+      setError(null);
+      setPhase("completed");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (reason) {
+      setHistoryError(reason instanceof Error ? reason.message : "The saved investigation could not be opened.");
+    } finally {
+      setOpeningHistoryId(null);
+    }
+  }
+
   return (
-    <div className="overflow-hidden rounded-[28px] border border-[#172019]/10 bg-white shadow-[0_30px_100px_rgba(32,48,37,0.12)]">
-      <section className="border-b border-[#172019]/10 bg-[#172019] p-5 text-white sm:p-7 lg:p-8">
+    <div className="space-y-5">
+      <div className="overflow-hidden rounded-[28px] border border-[#172019]/10 bg-white shadow-[0_30px_100px_rgba(32,48,37,0.12)]">
+        <section className="border-b border-[#172019]/10 bg-[#172019] p-5 text-white sm:p-7 lg:p-8">
         <div className="grid gap-6 lg:grid-cols-[0.72fr_1.28fr] lg:items-end">
           <div>
             <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[#dfff54]">
@@ -163,25 +244,137 @@ export function InvestigationWorkspace() {
             </p>
           </form>
         </div>
-      </section>
+        </section>
 
-      <div aria-live="polite">
-        {phase === "idle" && <IdleState />}
-        {(phase === "creating" || phase === "analyzing") && (
-          <LoadingState phase={phase} investigation={investigation} />
-        )}
-        {phase === "error" && error && (
-          <ErrorState message={error} onRetry={() => setPhase("idle")} />
-        )}
-        {phase === "completed" && analysis && investigation && (
-          <AnalysisDashboard
-            investigation={investigation}
-            analysis={analysis}
-            onReset={resetWorkspace}
-          />
-        )}
+        <div aria-live="polite">
+          {phase === "idle" && <IdleState />}
+          {(phase === "creating" || phase === "analyzing") && (
+            <LoadingState phase={phase} investigation={investigation} />
+          )}
+          {phase === "error" && error && (
+            <ErrorState message={error} onRetry={() => setPhase("idle")} />
+          )}
+          {phase === "completed" && analysis && investigation && (
+            <AnalysisDashboard
+              investigation={investigation}
+              analysis={analysis}
+              onReset={resetWorkspace}
+            />
+          )}
+        </div>
       </div>
+
+      <HistoryPanel
+        investigations={history}
+        loading={historyLoading}
+        error={historyError}
+        openingId={openingHistoryId}
+        disabled={isPending}
+        onOpen={openSavedInvestigation}
+        onRefresh={() => void loadHistory()}
+      />
     </div>
+  );
+}
+
+function HistoryPanel({
+  investigations,
+  loading,
+  error,
+  openingId,
+  disabled,
+  onOpen,
+  onRefresh,
+}: {
+  investigations: InvestigationHistoryItem[];
+  loading: boolean;
+  error: string | null;
+  openingId: string | null;
+  disabled: boolean;
+  onOpen: (id: string) => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[#172019]/10 bg-white p-5 shadow-[0_20px_70px_rgba(32,48,37,0.08)] sm:p-7">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-[#237a45]">
+            <History className="size-4" aria-hidden="true" />
+            Saved in PostgreSQL
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">Recent investigations</h2>
+          <p className="mt-2 text-sm leading-6 text-[#667168]">
+            Reopen a completed report without contacting GitHub or spending another AI request.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-[#172019]/15 px-4 py-2.5 text-sm font-semibold transition hover:bg-[#eef0e9] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <RefreshCcw className={`size-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
+          Refresh
+        </button>
+      </div>
+
+      {error && (
+        <div className="mt-5 flex items-start gap-3 rounded-2xl bg-[#fff0ec] p-4 text-sm text-[#8e3423]" role="alert">
+          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {loading && investigations.length === 0 ? (
+        <div className="mt-5 flex min-h-32 items-center justify-center rounded-2xl bg-[#f5f6f1] text-sm text-[#667168]">
+          <LoaderCircle className="mr-2 size-4 animate-spin" aria-hidden="true" />
+          Loading saved investigations
+        </div>
+      ) : investigations.length === 0 ? (
+        <div className="mt-5 rounded-2xl border border-dashed border-[#172019]/15 bg-[#fafaf7] p-7 text-center">
+          <p className="text-sm font-semibold">No completed investigations yet</p>
+          <p className="mt-2 text-xs leading-5 text-[#7a847c]">
+            Your first successful analysis will appear here automatically.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-5 grid gap-3 lg:grid-cols-2">
+          {investigations.map((item) => {
+            const isOpening = openingId === item.id;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onOpen(item.id)}
+                disabled={disabled || openingId !== null}
+                className="group rounded-2xl border border-[#172019]/10 p-4 text-left transition hover:border-[#237a45]/40 hover:bg-[#f8faf5] disabled:cursor-not-allowed disabled:opacity-55"
+                aria-label={`Open saved analysis for ${item.issue.title}`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="truncate font-mono text-[11px] text-[#667168]">
+                      {item.repository.owner}/{item.repository.name} #{item.issue.number}
+                    </p>
+                    <p className="mt-2 line-clamp-2 font-semibold leading-6">{item.issue.title}</p>
+                  </div>
+                  {isOpening ? (
+                    <LoaderCircle className="mt-1 size-4 shrink-0 animate-spin text-[#237a45]" aria-hidden="true" />
+                  ) : (
+                    <ChevronRight className="mt-1 size-4 shrink-0 text-[#8a938b] transition group-hover:translate-x-0.5 group-hover:text-[#237a45]" aria-hidden="true" />
+                  )}
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <StatusPill tone="neutral">{humanize(item.classification)}</StatusPill>
+                  <StatusPill tone={severityPillTone(item.severity)}>{humanize(item.severity)}</StatusPill>
+                  <span className="ml-auto text-xs text-[#8a938b]">{formatHistoryDate(item.completedAt)}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -329,7 +522,7 @@ function AnalysisDashboard({
   onReset,
 }: {
   investigation: CreatedInvestigation;
-  analysis: CompletedInvestigation;
+  analysis: AnalysisView;
   onReset: () => void;
 }) {
   const result = analysis.result;
@@ -693,7 +886,7 @@ function EmptyResult({
   );
 }
 
-async function requestJson<T>(url: string, init: RequestInit): Promise<T> {
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
   const payload: unknown = await response.json().catch(() => null);
 
@@ -718,6 +911,14 @@ function percent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
+function formatHistoryDate(value: string) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
 function statusTone(status: "present" | "partial" | "missing") {
   if (status === "present") return "success" as const;
   if (status === "partial") return "warning" as const;
@@ -734,4 +935,10 @@ function severityTone(severity: IssueAnalysisResult["severity"]["level"]) {
   if (severity === "critical" || severity === "high") return "danger" as const;
   if (severity === "medium") return "warning" as const;
   return "light" as const;
+}
+
+function severityPillTone(severity: IssueAnalysisResult["severity"]["level"]) {
+  if (severity === "critical" || severity === "high") return "danger" as const;
+  if (severity === "medium") return "warning" as const;
+  return "success" as const;
 }

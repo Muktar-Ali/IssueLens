@@ -1,6 +1,6 @@
 # IssueLens
 
-IssueLens is an evidence-based GitHub issue triage assistant. It will classify issues, detect missing debugging details, rank potential duplicates, inspect relevant repository code, and draft reproduction steps, fixes, and tests for human review.
+IssueLens is an evidence-based GitHub issue triage assistant. It classifies issues, detects missing debugging details, ranks bounded same-repository duplicate candidates, and drafts reproduction steps and follow-up questions for human review without downloading repository files.
 
 ## Stack
 
@@ -134,6 +134,19 @@ interpreted as a command.
 This synchronous endpoint is the MVP execution path. A background job queue can replace it later
 without changing the analysis contract or database lifecycle.
 
+## Reopen saved investigations
+
+Completed analyses are stored in PostgreSQL and appear in the recent investigations section of the
+workspace. Selecting one retrieves the stored report from IssueLens without contacting GitHub or
+making another OpenAI request.
+
+The history API exposes a bounded list and an individual completed report:
+
+```bash
+curl http://localhost:3000/api/investigations
+curl http://localhost:3000/api/investigations/INVESTIGATION_ID
+```
+
 ## Checks
 
 ```bash
@@ -147,5 +160,6 @@ npm run build
 
 The full-stack foundation, PostgreSQL persistence, public-repository allowlist, GitHub issue intake,
 database-backed GitHub App authentication, structured analysis contract, duplicate candidate search,
-and OpenAI execution pipeline are ready. A valid API key and at least one explicitly allowed public
-repository are required before making a live analysis request.
+OpenAI execution pipeline, analysis dashboard, and saved investigation history are ready. A valid API
+key and at least one explicitly allowed public repository are required before making a live analysis
+request.

@@ -5,6 +5,14 @@ const investigationId = "36d3ae7d-d3a6-43f6-9006-b482823f67fd";
 const issueUrl = "https://github.com/example/project/issues/42";
 
 test("shows the IssueLens investigation workspace", async ({ page }) => {
+  await page.route("**/api/investigations", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ investigations: [] }),
+    });
+  });
+
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /a clearer first pass/i })).toBeVisible();
   await expect(page.getByLabel("GitHub issue URL")).toBeVisible();
@@ -29,6 +37,15 @@ test("submits an issue and renders the structured analysis dashboard", async ({ 
     });
   });
   await page.route("**/api/investigations", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ investigations: [] }),
+      });
+      return;
+    }
+
     await route.fulfill({
       status: 201,
       contentType: "application/json",
@@ -64,5 +81,64 @@ test("submits an issue and renders the structured analysis dashboard", async ({ 
   await expect(page.getByText("96% confidence")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Reproduction plan" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Evidence ledger" })).toBeVisible();
+  await expect(page.getByText("gpt-5.4-mini-test")).toBeVisible();
+});
+
+test("reopens a saved investigation without starting a new analysis", async ({ page }) => {
+  await page.route(`**/api/investigations/${investigationId}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        investigation: {
+          id: investigationId,
+          status: "completed",
+          repository: { owner: "example", name: "project" },
+          issue: {
+            number: 42,
+            title: "Crash with empty configuration",
+            url: issueUrl,
+            state: "open",
+            author: "reporter",
+            labels: ["bug"],
+            updatedAt: "2026-11-12T12:00:00.000Z",
+          },
+          result: testIssueAnalysis,
+          model: "gpt-5.4-mini-test",
+          createdAt: "2026-11-12T12:01:00.000Z",
+          completedAt: "2026-11-12T12:02:00.000Z",
+        },
+      }),
+    });
+  });
+  await page.route("**/api/investigations", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        investigations: [
+          {
+            id: investigationId,
+            repository: { owner: "example", name: "project" },
+            issue: {
+              number: 42,
+              title: "Crash with empty configuration",
+              url: issueUrl,
+            },
+            classification: "bug",
+            severity: "medium",
+            model: "gpt-5.4-mini-test",
+            completedAt: "2026-11-12T12:02:00.000Z",
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open saved analysis for Crash with empty configuration" }).click();
+
+  await expect(page.getByText("Analysis complete")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Crash with empty configuration" })).toBeVisible();
   await expect(page.getByText("gpt-5.4-mini-test")).toBeVisible();
 });

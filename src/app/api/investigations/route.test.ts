@@ -5,7 +5,8 @@ import {
   type CreateInvestigationResult,
 } from "@/lib/investigations";
 import { RepositoryPolicyError } from "@/lib/repository-policy";
-import { handleCreateInvestigation } from "./handler";
+import type { InvestigationHistoryItem } from "@/lib/investigation-history";
+import { handleCreateInvestigation, handleListInvestigations } from "./handler";
 
 const investigation: CreateInvestigationResult = {
   id: "36d3ae7d-d3a6-43f6-9006-b482823f67fd",
@@ -115,6 +116,47 @@ describe("POST /api/investigations", () => {
       error: {
         code: "REPOSITORY_NOT_ALLOWED",
         message: "This repository is not explicitly approved for IssueLens analysis",
+      },
+    });
+  });
+});
+
+describe("GET /api/investigations", () => {
+  it("returns completed investigation summaries", async () => {
+    const history: InvestigationHistoryItem[] = [
+      {
+        id: investigation.id,
+        repository: investigation.repository,
+        issue: {
+          number: investigation.issue.number,
+          title: investigation.issue.title,
+          url: investigation.issue.url,
+        },
+        classification: "bug",
+        severity: "medium",
+        model: "gpt-5.4-mini-test",
+        completedAt: "2026-11-03T15:02:00.000Z",
+      },
+    ];
+    const list = vi.fn().mockResolvedValue(history);
+
+    const response = await handleListInvestigations(list);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ investigations: history });
+    expect(list).toHaveBeenCalledOnce();
+  });
+
+  it("returns a safe error when history cannot be loaded", async () => {
+    const response = await handleListInvestigations(
+      vi.fn().mockRejectedValue(new Error("database details")),
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "IssueLens could not load investigation history",
       },
     });
   });
