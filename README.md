@@ -140,6 +140,10 @@ Completed analyses are stored in PostgreSQL and appear in the recent investigati
 workspace. Selecting one retrieves the stored report from IssueLens without contacting GitHub or
 making another OpenAI request.
 
+Each completed report includes explicit human-review actions for copying the reproduction plan,
+copying follow-up questions, and downloading the complete analysis as Markdown. These actions run in
+the browser and never post labels, comments, or other changes to GitHub.
+
 The history API exposes a bounded list and an individual completed report:
 
 ```bash

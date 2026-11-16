@@ -9,6 +9,8 @@ import {
   ChevronRight,
   CircleDashed,
   ClipboardCheck,
+  Copy,
+  Download,
   ExternalLink,
   FileQuestion,
   Fingerprint,
@@ -26,6 +28,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { IssueAnalysisResult } from "@/lib/issue-analysis-schema";
+import {
+  buildFollowUpQuestionsMarkdown,
+  buildInvestigationMarkdown,
+  buildReproductionMarkdown,
+  investigationMarkdownFilename,
+} from "@/lib/investigation-markdown";
 import type {
   InvestigationHistoryItem,
   SavedInvestigationDetail,
@@ -526,6 +534,43 @@ function AnalysisDashboard({
   onReset: () => void;
 }) {
   const result = analysis.result;
+  const [actionFeedback, setActionFeedback] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  async function copyReviewText(text: string, label: string) {
+    try {
+      await copyTextToClipboard(text);
+      setActionFeedback({ tone: "success", message: `${label} copied to your clipboard.` });
+    } catch {
+      setActionFeedback({
+        tone: "error",
+        message: `IssueLens could not copy ${label.toLowerCase()}. Check your browser clipboard permission.`,
+      });
+    }
+  }
+
+  function downloadReport() {
+    const markdown = buildInvestigationMarkdown({
+      repository: investigation.repository,
+      issue: investigation.issue,
+      result,
+      model: analysis.model,
+    });
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = downloadUrl;
+    link.download = investigationMarkdownFilename(
+      investigation.repository,
+      investigation.issue.number,
+    );
+    link.click();
+    URL.revokeObjectURL(downloadUrl);
+    setActionFeedback({ tone: "success", message: "Markdown report downloaded." });
+  }
 
   return (
     <section className="bg-[#f8f8f4] p-4 sm:p-6 lg:p-8">
@@ -564,6 +609,68 @@ function AnalysisDashboard({
         <p className="mt-6 max-w-5xl border-l-2 border-[#dfff54] pl-4 text-base leading-7 text-[#4f5c52]">
           {result.summary}
         </p>
+
+        <div className="mt-6 border-t border-[#172019]/10 pt-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7a847c]">
+                Human review actions
+              </p>
+              <p className="mt-1 text-sm text-[#667168]">
+                Copy focused sections or download the complete report. Nothing is posted to GitHub.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  void copyReviewText(buildReproductionMarkdown(result), "Reproduction plan")
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-[#172019]/15 px-3.5 py-2.5 text-xs font-semibold transition hover:bg-[#eef0e9]"
+              >
+                <Copy className="size-3.5" aria-hidden="true" />
+                Copy reproduction
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void copyReviewText(
+                    buildFollowUpQuestionsMarkdown(result),
+                    "Follow-up questions",
+                  )
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-[#172019]/15 px-3.5 py-2.5 text-xs font-semibold transition hover:bg-[#eef0e9]"
+              >
+                <Copy className="size-3.5" aria-hidden="true" />
+                Copy questions
+              </button>
+              <button
+                type="button"
+                onClick={downloadReport}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#172019] px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-[#2c382f]"
+              >
+                <Download className="size-3.5" aria-hidden="true" />
+                Download Markdown
+              </button>
+            </div>
+          </div>
+
+          {actionFeedback && (
+            <p
+              className={`mt-3 flex items-center gap-2 text-xs font-medium ${
+                actionFeedback.tone === "success" ? "text-[#237a45]" : "text-[#9a3f2d]"
+              }`}
+              role="status"
+            >
+              {actionFeedback.tone === "success" ? (
+                <Check className="size-3.5" aria-hidden="true" />
+              ) : (
+                <AlertCircle className="size-3.5" aria-hidden="true" />
+              )}
+              {actionFeedback.message}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -884,6 +991,25 @@ function EmptyResult({
       <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-[#7a847c]">{description}</p>
     </div>
   );
+}
+
+async function copyTextToClipboard(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "");
+  textArea.style.position = "fixed";
+  textArea.style.opacity = "0";
+  document.body.append(textArea);
+  textArea.select();
+
+  const copied = document.execCommand("copy");
+  textArea.remove();
+  if (!copied) throw new Error("Clipboard access is unavailable");
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {

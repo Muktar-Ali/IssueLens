@@ -20,7 +20,10 @@ test("shows the IssueLens investigation workspace", async ({ page }) => {
   await expect(page.getByText(/no repository files downloaded/i)).toBeVisible();
 });
 
-test("submits an issue and renders the structured analysis dashboard", async ({ page }) => {
+test("submits an issue and renders the structured analysis dashboard", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: "http://localhost:3000",
+  });
   await page.route(`**/api/investigations/${investigationId}/analyze`, async (route) => {
     await route.fulfill({
       status: 200,
@@ -82,6 +85,17 @@ test("submits an issue and renders the structured analysis dashboard", async ({ 
   await expect(page.getByRole("heading", { name: "Reproduction plan" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Evidence ledger" })).toBeVisible();
   await expect(page.getByText("gpt-5.4-mini-test")).toBeVisible();
+
+  await page.getByRole("button", { name: "Copy reproduction" }).click();
+  await expect(page.getByText("Reproduction plan copied to your clipboard.")).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toContain("## Reproduction plan");
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download Markdown" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("example-project-issue-42-triage.md");
 });
 
 test("reopens a saved investigation without starting a new analysis", async ({ page }) => {
