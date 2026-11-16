@@ -97,6 +97,7 @@ Configure the server-only OpenAI settings in `.env.local`:
 ```bash
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.4-mini
+ISSUELENS_ANALYSIS_LIMIT_PER_HOUR=10
 ```
 
 After creating an investigation, use its returned UUID to start analysis:
@@ -130,6 +131,12 @@ access, and uses a strict Structured Output schema. Instructions inside an issue
 ignore rules, download a URL, reveal a key, or impersonate a system message—cannot grant permission or
 trigger an action. Model output is advisory JSON for human review and is never executed as code or
 interpreted as a command.
+
+Investigation creation requests are limited to 2 KB. Analysis starts are serialized through a short
+PostgreSQL transaction lock, limited to one running analysis per GitHub issue, and capped by a global
+rolling hourly budget. `ISSUELENS_ANALYSIS_LIMIT_PER_HOUR` configures that budget and defaults to 10
+when it is missing or invalid. Rejected requests return explicit `413`, `409`, or `429` responses
+before OpenAI is called.
 
 This synchronous endpoint is the MVP execution path. A background job queue can replace it later
 without changing the analysis contract or database lifecycle.

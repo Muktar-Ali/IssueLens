@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { testIssueAnalysis } from "@/test-fixtures/issue-analysis";
 import {
+  AnalysisRateLimitError,
   analyzeInvestigation,
+  assertAnalysisStartAllowed,
+  DEFAULT_ANALYSIS_LIMIT_PER_HOUR,
+  getAnalysisLimitPerHour,
+  IssueAnalysisAlreadyRunningError,
   InvestigationAnalysisFailedError,
   InvestigationNotFoundError,
 } from "./investigation-analysis";
@@ -113,5 +118,45 @@ describe("analyzeInvestigation", () => {
     ).rejects.toThrow(InvestigationNotFoundError);
 
     expect(failInvestigation).not.toHaveBeenCalled();
+  });
+});
+
+describe("analysis start protections", () => {
+  it("rejects another running analysis for the same issue", () => {
+    expect(() =>
+      assertAnalysisStartAllowed({
+        hasRunningAnalysisForIssue: true,
+        analysesStartedInWindow: 0,
+        hourlyLimit: 10,
+      }),
+    ).toThrow(IssueAnalysisAlreadyRunningError);
+  });
+
+  it("rejects analysis when the hourly budget is exhausted", () => {
+    expect(() =>
+      assertAnalysisStartAllowed({
+        hasRunningAnalysisForIssue: false,
+        analysesStartedInWindow: 10,
+        hourlyLimit: 10,
+      }),
+    ).toThrow(AnalysisRateLimitError);
+  });
+
+  it("allows analysis below the hourly budget", () => {
+    expect(() =>
+      assertAnalysisStartAllowed({
+        hasRunningAnalysisForIssue: false,
+        analysesStartedInWindow: 9,
+        hourlyLimit: 10,
+      }),
+    ).not.toThrow();
+  });
+
+  it("uses a bounded configurable hourly limit", () => {
+    expect(getAnalysisLimitPerHour("25")).toBe(25);
+    expect(getAnalysisLimitPerHour("0")).toBe(DEFAULT_ANALYSIS_LIMIT_PER_HOUR);
+    expect(getAnalysisLimitPerHour("not-a-number")).toBe(
+      DEFAULT_ANALYSIS_LIMIT_PER_HOUR,
+    );
   });
 });

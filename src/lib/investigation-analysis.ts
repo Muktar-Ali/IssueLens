@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, count, eq, gte, sql } from "drizzle-orm";
 import { investigations } from "@/db/schema";
 import { getDatabase } from "@/lib/database";
 import {
@@ -14,6 +14,16 @@ import {
 type ClaimedInvestigation = IssueAnalysisInput & {
   id: string;
 };
+
+type AnalysisStartState = {
+  hasRunningAnalysisForIssue: boolean;
+  analysesStartedInWindow: number;
+  hourlyLimit: number;
+};
+
+const ANALYSIS_START_LOCK_KEY = 4_973_383;
+const ANALYSIS_WINDOW_MILLISECONDS = 60 * 60 * 1_000;
+export const DEFAULT_ANALYSIS_LIMIT_PER_HOUR = 10;
 
 type AnalysisDependencies = {
   claimInvestigation: (id: string) => Promise<ClaimedInvestigation>;
@@ -39,6 +49,24 @@ export class InvestigationNotQueuedError extends Error {
   constructor(public readonly status: string) {
     super(`The investigation cannot be analyzed while its status is ${status}`);
     this.name = "InvestigationNotQueuedError";
+  }
+}
+
+export class IssueAnalysisAlreadyRunningError extends Error {
+  constructor() {
+    super("This GitHub issue already has an analysis in progress");
+    this.name = "IssueAnalysisAlreadyRunningError";
+  }
+}
+
+export class AnalysisRateLimitError extends Error {
+  readonly retryAfterSeconds = 3_600;
+
+  constructor(public readonly hourlyLimit: number) {
+    super(
+      `IssueLens has reached its configured limit of ${hourlyLimit} analyses per hour. Try again later.`,
+    );
+    this.name = "AnalysisRateLimitError";
   }
 }
 
@@ -85,42 +113,105 @@ export async function analyzeInvestigation(
 async function claimInvestigation(id: string): Promise<ClaimedInvestigation> {
   const database = getDatabase();
   const startedAt = new Date();
-  const [claimed] = await database
-    .update(investigations)
-    .set({
-      status: "running",
-      result: null,
-      failureReason: null,
-      analysisModel: null,
-      openaiResponseId: null,
-      startedAt,
-      completedAt: null,
-      updatedAt: startedAt,
-    })
-    .where(and(eq(investigations.id, id), eq(investigations.status, "queued")))
-    .returning({
-      id: investigations.id,
-      repositoryOwner: investigations.repositoryOwner,
-      repositoryName: investigations.repositoryName,
-      issueNumber: investigations.issueNumber,
-      issueTitle: investigations.issueTitle,
-      issueBody: investigations.issueBody,
-      issueUrl: investigations.issueUrl,
-      issueState: investigations.issueState,
-      issueAuthor: investigations.issueAuthor,
-      issueLabels: investigations.issueLabels,
+  const windowStart = new Date(startedAt.getTime() - ANALYSIS_WINDOW_MILLISECONDS);
+
+  return database.transaction(async (transaction) => {
+    await transaction.execute(sql`select pg_advisory_xact_lock(${ANALYSIS_START_LOCK_KEY})`);
+
+    const [existing] = await transaction
+      .select({
+        id: investigations.id,
+        status: investigations.status,
+        repositoryOwner: investigations.repositoryOwner,
+        repositoryName: investigations.repositoryName,
+        issueNumber: investigations.issueNumber,
+        issueTitle: investigations.issueTitle,
+        issueBody: investigations.issueBody,
+        issueUrl: investigations.issueUrl,
+        issueState: investigations.issueState,
+        issueAuthor: investigations.issueAuthor,
+        issueLabels: investigations.issueLabels,
+      })
+      .from(investigations)
+      .where(eq(investigations.id, id))
+      .limit(1);
+
+    if (!existing) throw new InvestigationNotFoundError();
+    if (existing.status !== "queued") throw new InvestigationNotQueuedError(existing.status);
+
+    const [runningForIssue] = await transaction
+      .select({ id: investigations.id })
+      .from(investigations)
+      .where(
+        and(
+          eq(investigations.repositoryOwner, existing.repositoryOwner),
+          eq(investigations.repositoryName, existing.repositoryName),
+          eq(investigations.issueNumber, existing.issueNumber),
+          eq(investigations.status, "running"),
+        ),
+      )
+      .limit(1);
+
+    const [usage] = await transaction
+      .select({ analysesStarted: count() })
+      .from(investigations)
+      .where(gte(investigations.startedAt, windowStart));
+
+    assertAnalysisStartAllowed({
+      hasRunningAnalysisForIssue: Boolean(runningForIssue),
+      analysesStartedInWindow: usage?.analysesStarted ?? 0,
+      hourlyLimit: getAnalysisLimitPerHour(),
     });
 
-  if (claimed) return claimed;
+    const [claimed] = await transaction
+      .update(investigations)
+      .set({
+        status: "running",
+        result: null,
+        failureReason: null,
+        analysisModel: null,
+        openaiResponseId: null,
+        startedAt,
+        completedAt: null,
+        updatedAt: startedAt,
+      })
+      .where(and(eq(investigations.id, id), eq(investigations.status, "queued")))
+      .returning({
+        id: investigations.id,
+        repositoryOwner: investigations.repositoryOwner,
+        repositoryName: investigations.repositoryName,
+        issueNumber: investigations.issueNumber,
+        issueTitle: investigations.issueTitle,
+        issueBody: investigations.issueBody,
+        issueUrl: investigations.issueUrl,
+        issueState: investigations.issueState,
+        issueAuthor: investigations.issueAuthor,
+        issueLabels: investigations.issueLabels,
+      });
 
-  const [existing] = await database
-    .select({ status: investigations.status })
-    .from(investigations)
-    .where(eq(investigations.id, id))
-    .limit(1);
+    if (!claimed) throw new InvestigationNotQueuedError("not queued");
+    return claimed;
+  });
+}
 
-  if (!existing) throw new InvestigationNotFoundError();
-  throw new InvestigationNotQueuedError(existing.status);
+export function assertAnalysisStartAllowed(state: AnalysisStartState) {
+  if (state.hasRunningAnalysisForIssue) throw new IssueAnalysisAlreadyRunningError();
+  if (state.analysesStartedInWindow >= state.hourlyLimit) {
+    throw new AnalysisRateLimitError(state.hourlyLimit);
+  }
+}
+
+export function getAnalysisLimitPerHour(
+  configuredValue = process.env.ISSUELENS_ANALYSIS_LIMIT_PER_HOUR,
+) {
+  if (!configuredValue?.trim()) return DEFAULT_ANALYSIS_LIMIT_PER_HOUR;
+
+  const parsed = Number(configuredValue);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 1_000) {
+    return DEFAULT_ANALYSIS_LIMIT_PER_HOUR;
+  }
+
+  return parsed;
 }
 
 async function completeInvestigation(id: string, analysis: GeneratedIssueAnalysis) {

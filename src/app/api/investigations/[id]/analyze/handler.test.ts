@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { testIssueAnalysis } from "@/test-fixtures/issue-analysis";
 import {
+  AnalysisRateLimitError,
+  IssueAnalysisAlreadyRunningError,
   InvestigationAnalysisFailedError,
   InvestigationNotFoundError,
   InvestigationNotQueuedError,
@@ -46,6 +48,23 @@ describe("POST /api/investigations/[id]/analyze", () => {
 
     expect(response.status).toBe(409);
     expect((await response.json()).error.code).toBe("INVESTIGATION_NOT_QUEUED");
+  });
+
+  it("returns 409 when the same issue already has a running analysis", async () => {
+    const analyze = vi.fn().mockRejectedValue(new IssueAnalysisAlreadyRunningError());
+    const response = await handleAnalyzeInvestigation(id, analyze);
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error.code).toBe("ISSUE_ANALYSIS_ALREADY_RUNNING");
+  });
+
+  it("returns 429 with retry guidance when the hourly budget is exhausted", async () => {
+    const analyze = vi.fn().mockRejectedValue(new AnalysisRateLimitError(10));
+    const response = await handleAnalyzeInvestigation(id, analyze);
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("3600");
+    expect((await response.json()).error.code).toBe("ANALYSIS_RATE_LIMITED");
   });
 
   it("returns 502 after an analysis execution failure", async () => {

@@ -11,6 +11,9 @@ import {
   type CreateInvestigationResult,
 } from "@/lib/investigations";
 import { RepositoryPolicyError } from "@/lib/repository-policy";
+import { readLimitedJson, RequestBodyTooLargeError } from "@/lib/request-json";
+
+const MAXIMUM_CREATE_REQUEST_BYTES = 2_048;
 
 const requestSchema = z
   .object({
@@ -39,8 +42,15 @@ export async function handleCreateInvestigation(
 ) {
   let body: unknown;
   try {
-    body = await request.json();
-  } catch {
+    body = await readLimitedJson(request, MAXIMUM_CREATE_REQUEST_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return errorResponse(
+        "REQUEST_TOO_LARGE",
+        "The investigation request must be 2 KB or smaller",
+        413,
+      );
+    }
     return errorResponse("INVALID_JSON", "The request body must be valid JSON", 400);
   }
 

@@ -59,6 +59,18 @@ describe("POST /api/investigations", () => {
     });
   });
 
+  it("rejects oversized request bodies before creating an investigation", async () => {
+    const create = vi.fn();
+    const response = await handleCreateInvestigation(
+      request(JSON.stringify({ issueUrl: `https://github.com/${"x".repeat(3_000)}` })),
+      create,
+    );
+
+    expect(response.status).toBe(413);
+    expect((await response.json()).error.code).toBe("REQUEST_TOO_LARGE");
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("rejects missing or extra request fields", async () => {
     const response = await handleCreateInvestigation(
       request(JSON.stringify({ issueUrl: investigation.issue.url, unexpected: true })),

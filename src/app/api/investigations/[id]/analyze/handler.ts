@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
+  AnalysisRateLimitError,
   analyzeInvestigation,
+  IssueAnalysisAlreadyRunningError,
   InvestigationAnalysisFailedError,
   InvestigationNotFoundError,
   InvestigationNotQueuedError,
@@ -28,6 +30,17 @@ export async function handleAnalyzeInvestigation(
     if (error instanceof InvestigationNotQueuedError) {
       return errorResponse("INVESTIGATION_NOT_QUEUED", error.message, 409);
     }
+    if (error instanceof IssueAnalysisAlreadyRunningError) {
+      return errorResponse("ISSUE_ANALYSIS_ALREADY_RUNNING", error.message, 409);
+    }
+    if (error instanceof AnalysisRateLimitError) {
+      return errorResponse(
+        "ANALYSIS_RATE_LIMITED",
+        error.message,
+        429,
+        { "Retry-After": String(error.retryAfterSeconds) },
+      );
+    }
     if (error instanceof InvestigationAnalysisFailedError) {
       return errorResponse("ANALYSIS_FAILED", error.message, 502);
     }
@@ -37,6 +50,11 @@ export async function handleAnalyzeInvestigation(
   }
 }
 
-function errorResponse(code: string, message: string, status: number) {
-  return NextResponse.json({ error: { code, message } }, { status });
+function errorResponse(
+  code: string,
+  message: string,
+  status: number,
+  headers?: HeadersInit,
+) {
+  return NextResponse.json({ error: { code, message } }, { status, headers });
 }
