@@ -42,6 +42,30 @@ npm run db:down
 
 Open `http://localhost:3000`.
 
+## GitHub login and user allowlist
+
+The workspace and investigation APIs require an Auth.js session from GitHub. Configure the GitHub
+App's OAuth callback URL as `http://localhost:3000/api/auth/callback/github`, generate a client
+secret in the GitHub App settings, and add these server-only values to `.env.local`:
+
+```bash
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+AUTH_SECRET=
+AUTH_TRUST_HOST=true
+ISSUELENS_ALLOWED_GITHUB_USER_IDS=
+```
+
+Generate `AUTH_SECRET` with `openssl rand -base64 32`. The user allowlist accepts comma-separated
+permanent numeric GitHub user IDs, not changeable usernames. You can retrieve a public user's ID from
+`https://api.github.com/users/USERNAME`. A missing or empty allowlist permits nobody; malformed values
+and wildcards are ignored.
+
+Login requests only the read-only `read:user` identity scope. The session sent to the browser contains
+the GitHub user ID, login, display name, and avatar—not the user's email or OAuth access token. User
+login is separate from the GitHub App installation credentials used by IssueLens to retrieve approved
+public issue metadata.
+
 ## GitHub App authentication and repository allowlist
 
 IssueLens uses a GitHub App installation token when these server-only variables are configured:
@@ -169,7 +193,7 @@ npm run build
 
 ## Project status
 
-The full-stack foundation, PostgreSQL persistence, public-repository allowlist, GitHub issue intake,
+The full-stack foundation, GitHub user authentication, PostgreSQL persistence, public-repository allowlist, GitHub issue intake,
 database-backed GitHub App authentication, structured analysis contract, duplicate candidate search,
 OpenAI execution pipeline, analysis dashboard, and saved investigation history are ready. A valid API
 key and at least one explicitly allowed public repository are required before making a live analysis

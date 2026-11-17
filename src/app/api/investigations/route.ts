@@ -1,9 +1,15 @@
 import { handleCreateInvestigation, handleListInvestigations } from "./handler";
+import {
+  getAuthorizedSession,
+  unauthenticatedApiResponse,
+} from "@/lib/auth-access";
 
-export function GET() {
+export async function GET() {
+  if (!(await getAuthorizedSession())) return unauthenticatedApiResponse();
   return handleListInvestigations();
 }
 
-export function POST(request: Request) {
+export async function POST(request: Request) {
+  if (!(await getAuthorizedSession())) return unauthenticatedApiResponse();
   return handleCreateInvestigation(request);
 }

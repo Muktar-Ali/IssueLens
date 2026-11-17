@@ -1,8 +1,26 @@
 import { expect, test } from "@playwright/test";
 import { testIssueAnalysis } from "../../src/test-fixtures/issue-analysis";
+import { addAuthorizedSession } from "./auth-session";
 
 const investigationId = "36d3ae7d-d3a6-43f6-9006-b482823f67fd";
 const issueUrl = "https://github.com/example/project/issues/42";
+
+test.beforeEach(async ({ context }) => {
+  await addAuthorizedSession(context);
+});
+
+test("requires an approved GitHub session", async ({ page, context }) => {
+  await context.clearCookies();
+
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "Sign in to IssueLens." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue with GitHub" })).toBeVisible();
+
+  const response = await page.request.get("/api/investigations");
+  expect(response.status()).toBe(401);
+  expect((await response.json()).error.code).toBe("UNAUTHENTICATED");
+});
 
 test("shows the IssueLens investigation workspace", async ({ page }) => {
   await page.route("**/api/investigations", async (route) => {

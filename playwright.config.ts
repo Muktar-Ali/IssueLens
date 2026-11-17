@@ -1,4 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
+import {
+  TEST_AUTH_SECRET,
+  TEST_GITHUB_USER_ID,
+} from "./tests/e2e/auth-session";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -10,6 +14,13 @@ export default defineConfig({
     command: "npm run dev",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
+    env: {
+      AUTH_SECRET: TEST_AUTH_SECRET,
+      AUTH_TRUST_HOST: "true",
+      GITHUB_CLIENT_ID: "test-client-id",
+      GITHUB_CLIENT_SECRET: "test-client-secret",
+      ISSUELENS_ALLOWED_GITHUB_USER_IDS: TEST_GITHUB_USER_ID,
+    },
   },
   projects: [
     {
